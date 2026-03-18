@@ -12,9 +12,78 @@ st.set_page_config(
 )
 
 # ── Header ───────────────────────────────────────────────────
+
+def show_graph(active_node: int = -1):
+    nodes = [
+        "🔍 Fetch Papers",
+        "📄 Summarize Papers", 
+        "🔬 Identify Gaps",
+        "💡 Generate Questions",
+        "✍️ Write Draft",
+        "🏁 END"
+    ]
+    
+    boxes = ""
+    for i, label in enumerate(nodes):
+        if i < active_node:
+            border = "#238636"
+            bg = "#0d1f0d"
+            color = "#3fb950"
+        elif i == active_node:
+            border = "#f0c000"
+            bg = "#2d2500"
+            color = "#f0c000"
+        else:
+            border = "#1f6feb" if i < len(nodes) - 1 else "#238636"
+            bg = "#161b22"
+            color = "white"
+
+        arrow = "<span style='color:#58a6ff;font-size:20px;margin:0 6px;'>→</span>" if i < len(nodes) - 1 else ""
+        
+        boxes += f"""
+        <div style='
+            border: 2px solid {border};
+            background: {bg};
+            color: {color};
+            border-radius: 8px;
+            padding: 10px 14px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            min-width: 100px;
+            line-height: 1.4;
+            white-space: pre-line;
+        '>{label.replace(' ', '<br>')}</div>{arrow}
+        """
+    
+    status = "⏳ Running..." if 0 <= active_node < len(nodes) else ("✅ Complete!" if active_node >= len(nodes) else "Ready to run")
+    
+    html = f"""
+    <div style='
+        background: #0e1117;
+        padding: 20px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 4px;
+    '>
+        {boxes}
+    </div>
+    <p style='text-align:center; color:#8b949e; font-size:12px; margin-top:8px;'>
+        LangGraph State Machine &nbsp;|&nbsp; {status}
+    </p>
+    """
+    return html
+
 st.title("🔬 Local AI Researcher")
 st.markdown("*Autonomous research pipeline powered by Llama 3.1 running 100% locally*")
 st.divider()
+st.markdown("### 🗺️ Pipeline Architecture")
+graph_placeholder = st.empty()
+graph_placeholder.html(show_graph(-1))
+st.caption("Built with LangGraph — each box is a graph node, state flows left to right")
 
 # ── Sidebar ──────────────────────────────────────────────────
 with st.sidebar:
@@ -69,9 +138,10 @@ if run_button and topic:
     log_container = st.empty()
     logs = []
     
-    def update_log(message: str):
+    def update_log(message: str, node_index: int = -1):
         logs.append(message)
         log_container.markdown("\n\n".join(logs))
+        graph_placeholder.html(show_graph(node_index))
     
     # Progress bar
     # Progress bar
@@ -90,11 +160,19 @@ if run_button and topic:
     update_log(f"✅ Topic confirmed: **{topic}**")
     st.info(f"🎯 Running pipeline for: **{topic}**")
 
-    # ── Step 1: Fetch Papers ──
-    progress.progress(10, text="Step 1/5 — Fetching papers from arXiv...")
-    papers = agent.step1_fetch_papers(topic, callback=update_log)
-    progress.progress(20, text="Step 1/5 — Done ✅")
-    
+    # ── Run LangGraph Pipeline ──
+    progress.progress(10, text="🚀 Running LangGraph pipeline...")
+    with st.spinner("⏳ Agent is working... this takes 2-3 minutes. Please wait!"):
+        result = agent.run(topic, callback=update_log)
+    graph_placeholder.html(show_graph(6))  # all nodes complete
+    progress.progress(100, text="✅ Pipeline Complete!")
+
+    papers = result.get("papers", [])
+    summaries = result.get("summaries", [])
+    gaps = result.get("gaps", "")
+    questions = result.get("research_questions", "")
+    draft = result.get("paper_draft", "")
+
     # Show papers found
     if papers:
         with st.expander(f"📚 {len(papers)} Papers Found", expanded=False):
@@ -104,41 +182,19 @@ if run_button and topic:
                     st.caption(f"👥 {', '.join(p['authors'])} | 📅 {p['published']}")
                     st.markdown(f"> {p['abstract'][:200]}...")
                     st.divider()
-    
-    # ── Step 2: Summarize ──
-    progress.progress(30, text="Step 2/5 — Summarizing papers with LLM...")
-    summaries = agent.step2_summarize_papers(callback=update_log)
-    progress.progress(50, text="Step 2/5 — Done ✅")
-    
+
     with st.expander("📝 Paper Summaries", expanded=False):
         for s in summaries:
             st.markdown(f"**{s['title']}**")
             st.caption(f"👥 {', '.join(s['authors'])} | 📅 {s['published']} | 🔗 [Link]({s['url']})")
             st.markdown(s["summary"])
             st.divider()
-    
-    # ── Step 3: Gaps ──
-    progress.progress(60, text="Step 3/5 — Identifying research gaps...")
-    gaps = agent.step3_identify_gaps(topic, callback=update_log)
-    progress.progress(70, text="Step 3/5 — Done ✅")
-    
+
     with st.expander("🔬 Research Gaps Identified", expanded=True):
         st.markdown(gaps)
-    
-    # ── Step 4: Research Questions ──
-    progress.progress(80, text="Step 4/5 — Generating research questions...")
-    questions = agent.step4_generate_questions(topic, callback=update_log)
-    progress.progress(90, text="Step 4/5 — Done ✅")
-    
+
     with st.expander("💡 Research Questions", expanded=True):
         st.markdown(questions)
-    
-    # ── Step 5: Paper Draft ──
-    progress.progress(95, text="Step 5/5 — Writing paper draft...")
-    draft = agent.step5_write_draft(topic, callback=update_log)
-    progress.progress(100, text="✅ Pipeline Complete!")
-    
-    st.success("🎉 Research pipeline completed successfully!")
     
     # ── Paper Draft Display ──
     st.markdown("---")
