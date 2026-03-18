@@ -1,36 +1,40 @@
 # 🔬 Local AI Researcher
 
-An autonomous research pipeline powered by open-source LLMs that takes a research topic and executes the full academic research process — entirely using open-source models and a LangGraph agent framework.
+An autonomous research pipeline powered by open-source LLMs that takes a research topic and executes the full academic research process — using a LangGraph agent framework with conditional branching.
 
 ## 🚀 Live Demo
 👉 [https://local-ai-researcher-09.streamlit.app](https://local-ai-researcher-09.streamlit.app)
 
 ## 🧠 What it does
 
-Given a research topic, the autonomous agent:
+Given a research topic, the autonomous LangGraph agent:
 
-1. 🔍 **Fetches papers** from arXiv API
-2. 📄 **Summarizes** each paper using Llama 3.1 8B
-3. 🔬 **Identifies research gaps** across the literature
-4. 💡 **Generates research questions** grounded in the gaps
-5. ✍️ **Writes a full paper draft** (title, abstract, intro, methodology, contributions)
-6. 📥 **Exports** the report as a downloadable PDF
+1. 🔍 **Validates** the topic — rejects gibberish, food items, or non-academic input
+2. 🔍 **Fetches papers** from arXiv API
+3. 🔄 **Conditionally broadens** the search query if fewer than 3 papers found
+4. 📄 **Summarizes** each paper using Llama 3.1 8B
+5. 🔬 **Identifies research gaps** across the literature
+6. 💡 **Generates research questions** grounded in the gaps
+7. ✍️ **Writes a full paper draft** (title, abstract, intro, methodology, contributions)
+8. 📥 **Exports** the report as a formatted downloadable PDF
 
 ## 🏗️ Architecture
 
-Built with **LangGraph** — each step is a graph node with shared typed state flowing through the pipeline:
+Built with **LangGraph** — each step is a graph node with a shared typed state (`ResearchState`) flowing through the pipeline:
 ```
 [Fetch Papers] → Check: enough papers?
-                      ↓ NO → [Broaden Query] → [Fetch Papers again]
-                      ↓ YES
-              [Summarize Papers] → [Identify Gaps] → [Generate Questions] → [Write Draft] → END
+                      ↓ NO (<3 papers)
+                [Broaden Query] → [Fetch Papers again]
+                      ↓ YES (≥3 papers)
+         [Summarize Papers] → [Identify Gaps] → [Generate Questions] → [Write Draft] → END
 ```
 
-Each node updates a shared `ResearchState` object, enabling:
-- ✅ Stateful execution across nodes
-- ✅ Conditional branching (extensible)
-- ✅ Human-in-the-loop checkpoints (extensible)
-- ✅ Visual pipeline monitoring in real-time
+### Key Agent Capabilities:
+- ✅ **Conditional branching** — auto-broadens query if fewer than 3 papers found
+- ✅ **Stateful execution** — typed `ResearchState` shared across all nodes
+- ✅ **Topic validation** — LLM validates input before pipeline runs
+- ✅ **Real-time graph visualization** — pipeline diagram updates live as nodes execute
+- ✅ **Retry logic** — maximum 2 retries to avoid infinite loops
 
 ## 🛠️ Tech Stack
 
@@ -41,14 +45,15 @@ Each node updates a shared `ResearchState` object, enabling:
 | Paper Source | arXiv API |
 | Topic Validation | LLM-based validator |
 | UI | Streamlit |
+| PDF Export | fpdf2 |
 | Deployment | Streamlit Cloud |
 
 ## 📁 Project Structure
 ```
 local-ai-researcher/
 ├── app.py              ← Streamlit UI + live graph visualization
-├── agent.py            ← LangGraph pipeline orchestrator
-├── graph.py            ← LangGraph state machine definition
+├── agent.py            ← LangGraph pipeline orchestrator  
+├── graph.py            ← LangGraph state machine + conditional branching
 ├── prompts.py          ← LLM prompt templates
 ├── tools/
 │   ├── arxiv_tool.py   ← arXiv paper fetcher
@@ -85,12 +90,13 @@ GROQ_API_KEY=your_groq_api_key
 
 Get a free Groq API key at [console.groq.com](https://console.groq.com)
 
-## 💡 Key Features
-
-- **Topic Validation** — LLM validates input before running, rejects gibberish/non-academic topics
-- **Real-time Graph** — Pipeline architecture diagram updates live as each node executes
-- **PDF Export** — Download the full research report as a formatted PDF
-- **100% Open Source** — Uses Llama 3.1 8B, no proprietary models required
+## 💡 Example Topics
+```
+autonomous AI agents using large language models
+federated learning in healthcare
+graph neural networks for drug discovery
+transformer models for time series forecasting
+```
 
 ## 👤 Author
 
