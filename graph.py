@@ -13,12 +13,14 @@ from prompts import (
 # ── State Definition ──────────────────────────────────────────
 class ResearchState(TypedDict):
     topic: str
+    original_topic: str
     papers: List[dict]
     summaries: List[dict]
     gaps: str
     research_questions: str
     paper_draft: str
     logs: List[str]
+    retry_count: int
 
 # ── Node Functions ────────────────────────────────────────────
 
@@ -29,6 +31,28 @@ def fetch_papers_node(state: ResearchState) -> ResearchState:
     logs = state.get("logs", [])
     logs.append(f"✅ Fetched {len(papers)} papers for: {topic}")
     return {**state, "papers": papers, "logs": logs}
+
+
+def broaden_query_node(state: ResearchState) -> ResearchState:
+    """Conditional Node: Broaden the search query if not enough papers found."""
+    logs = state.get("logs", [])
+    retry_count = state.get("retry_count", 0)
+    
+    prompt = f"""The research topic "{state['topic']}" returned too few papers.
+Generate a broader, more general version of this topic for an arXiv search.
+Return ONLY the new search query, nothing else.
+Original topic: {state['topic']}
+Broader query:"""
+    
+    broader_topic = call_llm(prompt).strip().split("\n")[0]
+    logs.append(f"🔄 Too few papers found — broadening query to: {broader_topic}")
+    
+    return {
+        **state,
+        "topic": broader_topic,
+        "logs": logs,
+        "retry_count": retry_count + 1
+    }
 
 
 def summarize_papers_node(state: ResearchState) -> ResearchState:
@@ -88,30 +112,57 @@ def write_draft_node(state: ResearchState) -> ResearchState:
     return {**state, "paper_draft": draft, "logs": logs}
 
 
+# ── Conditional Edge Function ─────────────────────────────────
+
+def check_papers_count(state: ResearchState) -> str:
+    """Decide: enough papers found or need to broaden query?"""
+    papers = state.get("papers", [])
+    retry_count = state.get("retry_count", 0)
+    valid_papers = [p for p in papers if "error" not in p]
+    
+    # Max 2 retries to avoid infinite loop
+    if len(valid_papers) < 3 and retry_count < 2:
+        return "broaden_query"
+    else:
+        return "summarize_papers"
+
+
 # ── Build Graph ───────────────────────────────────────────────
 
 def build_research_graph():
-    """Build and compile the LangGraph research pipeline."""
-    
     graph = StateGraph(ResearchState)
-    
-    # Add nodes
+
+    # Add all nodes
     graph.add_node("fetch_papers", fetch_papers_node)
+    graph.add_node("broaden_query", broaden_query_node)
     graph.add_node("summarize_papers", summarize_papers_node)
     graph.add_node("identify_gaps", identify_gaps_node)
     graph.add_node("generate_questions", generate_questions_node)
     graph.add_node("write_draft", write_draft_node)
-    
-    # Add edges (sequential flow)
+
+    # Entry point
     graph.set_entry_point("fetch_papers")
-    graph.add_edge("fetch_papers", "summarize_papers")
+
+    # ── Conditional edge after fetch ──
+    graph.add_conditional_edges(
+        "fetch_papers",
+        check_papers_count,
+        {
+            "broaden_query": "broaden_query",
+            "summarize_papers": "summarize_papers"
+        }
+    )
+
+    # Broaden → retry fetch
+    graph.add_edge("broaden_query", "fetch_papers")
+
+    # Normal flow
     graph.add_edge("summarize_papers", "identify_gaps")
     graph.add_edge("identify_gaps", "generate_questions")
     graph.add_edge("generate_questions", "write_draft")
     graph.add_edge("write_draft", END)
-    
+
     return graph.compile()
 
 
-# Compiled graph instance
 research_graph = build_research_graph()

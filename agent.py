@@ -51,12 +51,14 @@ Response:"""
 
         initial_state = {
             "topic": topic,
+            "original_topic": topic,
             "papers": [],
             "summaries": [],
             "gaps": "",
             "research_questions": "",
             "paper_draft": "",
-            "logs": []
+            "logs": [],
+            "retry_count": 0
         }
 
         # Node callbacks with index

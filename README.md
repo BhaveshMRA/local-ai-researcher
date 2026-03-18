@@ -20,7 +20,10 @@ Given a research topic, the autonomous agent:
 
 Built with **LangGraph** — each step is a graph node with shared typed state flowing through the pipeline:
 ```
-[Fetch Papers] → [Summarize Papers] → [Identify Gaps] → [Generate Questions] → [Write Draft] → END
+[Fetch Papers] → Check: enough papers?
+                      ↓ NO → [Broaden Query] → [Fetch Papers again]
+                      ↓ YES
+              [Summarize Papers] → [Identify Gaps] → [Generate Questions] → [Write Draft] → END
 ```
 
 Each node updates a shared `ResearchState` object, enabling:
