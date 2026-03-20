@@ -122,7 +122,7 @@ with col1:
         placeholder="e.g. autonomous AI agents using large language models",
         help="Enter a research topic to analyze"
     )
-
+    st.caption("ℹ️ Papers are sourced from arXiv — best results for CS, ML, Physics, Biology, and Math topics.")
 with col2:
     st.markdown("<br>", unsafe_allow_html=True)
     run_button = st.button("🚀 Run Pipeline", type="primary", use_container_width=True)
