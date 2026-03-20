@@ -11,6 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
+
 # ── Header ───────────────────────────────────────────────────
 
 def show_graph(active_node: int = -1):
@@ -128,52 +129,57 @@ with col2:
 
 # ── Pipeline Execution ───────────────────────────────────────
 if run_button and topic:
-    
+    # Reset any previous state
+    for key in ["phase1_approved", "phase1_result", "edited_gaps", 
+                "topic_confirmed", "summaries", "papers"]:
+        st.session_state.pop(key, None)
+
     if not agent.check_ollama():
-        st.error("❌ Ollama is not running! Open terminal and run: `ollama serve`")
+        st.error("❌ Groq API not connected!")
         st.stop()
-    
-    # Log container
+
     st.markdown("### 📡 Pipeline Progress")
     log_container = st.empty()
     logs = []
-    
+
     def update_log(message: str, node_index: int = -1):
         logs.append(message)
         log_container.markdown("\n\n".join(logs))
         graph_placeholder.html(show_graph(node_index))
-    
-    # Progress bar
-    # Progress bar
-    progress = st.progress(0, text="Starting pipeline...")
 
-    # ── Validate topic first ──
+    # Validate
     update_log("🔎 Validating research topic...")
     validation = agent.validate_topic(topic)
-    
     if not validation["valid"]:
-        st.error(f"❌ **Invalid research topic:** {validation['reason']}")
-        st.warning("💡 Please enter a valid academic research topic (e.g. 'autonomous AI agents using LLMs')")
+        st.error(f"❌ **Invalid topic:** {validation['reason']}")
         st.stop()
-    
+
     topic = validation["corrected"]
     update_log(f"✅ Topic confirmed: **{topic}**")
     st.info(f"🎯 Running pipeline for: **{topic}**")
 
-    # ── Run LangGraph Pipeline ──
-    progress.progress(10, text="🚀 Running LangGraph pipeline...")
-    with st.spinner("⏳ Agent is working... this takes 2-3 minutes. Please wait!"):
-        result = agent.run(topic, callback=update_log)
-    graph_placeholder.html(show_graph(6))  # all nodes complete
-    progress.progress(100, text="✅ Pipeline Complete!")
+    progress = st.progress(10, text="Phase 1 — Fetching & analyzing papers...")
+    with st.spinner("⏳ Fetching and analyzing papers..."):
+        phase1_result = agent.run_phase1(topic, callback=update_log)
 
-    papers = result.get("papers", [])
-    summaries = result.get("summaries", [])
-    gaps = result.get("gaps", "")
-    questions = result.get("research_questions", "")
-    draft = result.get("paper_draft", "")
+    graph_placeholder.html(show_graph(3))
+    progress.progress(50, text="Phase 1 complete ✅")
 
-    # Show papers found
+    # Save everything to session state
+    st.session_state["phase1_result"] = phase1_result
+    st.session_state["topic_confirmed"] = topic
+    st.session_state["papers"] = phase1_result.get("papers", [])
+    st.session_state["summaries"] = phase1_result.get("summaries", [])
+    st.session_state["edited_gaps"] = phase1_result.get("gaps", "")
+    st.session_state["phase1_approved"] = False
+
+
+# ── Always show Phase 1 results + checkpoint if phase1 ran ──
+if "phase1_result" in st.session_state and not st.session_state.get("phase2_done"):
+    topic = st.session_state.get("topic_confirmed", "")
+    papers = st.session_state.get("papers", [])
+    summaries = st.session_state.get("summaries", [])
+
     if papers:
         with st.expander(f"📚 {len(papers)} Papers Found", expanded=False):
             for i, p in enumerate(papers, 1):
@@ -190,23 +196,88 @@ if run_button and topic:
             st.markdown(s["summary"])
             st.divider()
 
-    with st.expander("🔬 Research Gaps Identified", expanded=True):
+    # ── Human in the Loop ──
+    if not st.session_state.get("phase1_approved"):
+        st.markdown("---")
+        st.markdown("## 🧠 Human-in-the-Loop Checkpoint")
+        st.markdown("*Review the identified gaps before the agent continues.*")
+
+        edited_gaps = st.text_area(
+            "✏️ Review & Edit Research Gaps",
+            value=st.session_state["edited_gaps"],
+            height=250,
+            key="gaps_editor"
+        )
+        st.session_state["edited_gaps"] = edited_gaps
+
+        col1, col2 = st.columns(2)
+        approve = col1.button("✅ Approve & Continue", type="primary", use_container_width=True)
+        reanalyze = col2.button("🔄 Re-analyze Gaps", use_container_width=True)
+
+        if reanalyze:
+            from tools.llm_tool import call_llm
+            from tools.arxiv_tool import format_papers_for_llm
+            from prompts import gap_analysis_prompt, SYSTEM_PROMPT
+            with st.spinner("🔄 Re-analyzing..."):
+                papers_text = format_papers_for_llm(papers)
+                new_gaps = call_llm(gap_analysis_prompt(papers_text, topic), SYSTEM_PROMPT)
+            st.session_state["edited_gaps"] = new_gaps
+            st.rerun()
+
+        if approve:
+            st.session_state["phase1_approved"] = True
+            st.rerun()
+
+    # ── Phase 2 runs after approval ──
+    if st.session_state.get("phase1_approved") and not st.session_state.get("phase2_done"):
+        st.markdown("---")
+        st.markdown("### 📡 Phase 2 Progress")
+        log2 = st.empty()
+        logs2 = []
+
+        def update_log2(message: str, node_index: int = -1):
+            logs2.append(message)
+            log2.markdown("\n\n".join(logs2))
+
+        progress2 = st.progress(50, text="Phase 2 — Writing paper draft...")
+        phase1_result = st.session_state["phase1_result"]
+        phase1_result["gaps"] = st.session_state["edited_gaps"]
+
+        with st.spinner("⏳ Generating questions and writing draft..."):
+            agent2 = ResearchAgent()
+            phase2_result = agent2.run_phase2(phase1_result, callback=update_log2)
+
+        graph_placeholder.html(show_graph(6))
+        progress2.progress(100, text="✅ Complete!")
+        st.success("🎉 Research pipeline completed!")
+
+        # Save phase2 results
+        st.session_state["questions"] = phase2_result.get("research_questions", "")
+        st.session_state["draft"] = phase2_result.get("paper_draft", "")
+        st.session_state["phase2_done"] = True
+        st.rerun()
+
+
+# ── Show final results ──
+if st.session_state.get("phase2_done"):
+    topic = st.session_state.get("topic_confirmed", "")
+    summaries = st.session_state.get("summaries", [])
+    gaps = st.session_state.get("edited_gaps", "")
+    questions = st.session_state.get("questions", "")
+    draft = st.session_state.get("draft", "")
+
+    with st.expander("🔬 Research Gaps (Reviewed)", expanded=True):
         st.markdown(gaps)
 
     with st.expander("💡 Research Questions", expanded=True):
         st.markdown(questions)
-    
-    # ── Paper Draft Display ──
+
     st.markdown("---")
     st.markdown("## 📄 Generated Paper Draft")
     st.markdown(draft)
-    
-    # ── PDF Export ──
+
     st.markdown("---")
     st.markdown("### 📥 Export")
-
-    def clean_text(text):
-        return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
 
     def generate_pdf(topic, summaries, gaps, questions, draft):
         from fpdf import FPDF
@@ -222,11 +293,8 @@ if run_button and topic:
         pdf.set_margins(15, 15, 15)
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
+        W = pdf.epw
 
-        W = pdf.epw  # effective page width after margins
-        print(f"DEBUG: pdf.w={pdf.w}, pdf.epw={pdf.epw}, margins: l={pdf.l_margin} r={pdf.r_margin}")
-
-        # ── Cover Header ──
         pdf.set_fill_color(15, 31, 107)
         pdf.rect(0, 0, 210, 42, 'F')
         pdf.set_xy(15, 8)
@@ -258,13 +326,10 @@ if run_button and topic:
                     continue
                 pdf.set_x(pdf.l_margin)
                 if line.startswith(("Gap", "RQ")):
-                    pdf.ln(1)
                     pdf.set_font("Helvetica", "B", 10)
                     pdf.set_x(pdf.l_margin)
                     pdf.multi_cell(pdf.epw, 6, line)
                     pdf.set_font("Helvetica", "", 10)
-                elif line.startswith(("•", "-")):
-                    pdf.multi_cell(pdf.epw, 6, "  " + line)
                 else:
                     pdf.multi_cell(pdf.epw, 6, line)
             pdf.ln(2)
@@ -274,7 +339,6 @@ if run_button and topic:
             pdf.line(15, pdf.get_y(), 15 + W, pdf.get_y())
             pdf.ln(4)
 
-        # ── Papers Reviewed ──
         section_title("PAPERS REVIEWED")
         for i, s in enumerate(summaries, 1):
             pdf.set_x(pdf.l_margin)
@@ -290,24 +354,18 @@ if run_button and topic:
             body_text(s["summary"])
             divider()
 
-        # ── Research Gaps ──
         pdf.add_page()
         section_title("RESEARCH GAPS IDENTIFIED")
         body_text(gaps)
         divider()
-
-        # ── Research Questions ──
         section_title("RESEARCH QUESTIONS")
         body_text(questions)
         divider()
-
-        # ── Paper Draft ──
         pdf.add_page()
         section_title("GENERATED PAPER DRAFT")
         body_text(draft)
 
         return bytes(pdf.output())
-    
 
     pdf_bytes = generate_pdf(topic, summaries, gaps, questions, draft)
     st.download_button(
@@ -316,9 +374,13 @@ if run_button and topic:
         file_name=f"research_report_{topic[:30].replace(' ', '_')}.pdf",
         mime="application/pdf"
     )
+
+    if st.button("🔁 Start New Research"):
+        for key in ["phase1_approved", "phase1_result", "edited_gaps",
+                    "topic_confirmed", "summaries", "papers",
+                    "questions", "draft", "phase2_done"]:
+            st.session_state.pop(key, None)
+        st.rerun()
+
 elif run_button and not topic:
     st.warning("⚠️ Please enter a research topic first!")
-
-# ── Footer ───────────────────────────────────────────────────
-st.markdown("---")
-st.caption("🔬 Local AI Researcher | Powered by Llama 3.1 8B (Groq) + arXiv API | 100% Open Source")

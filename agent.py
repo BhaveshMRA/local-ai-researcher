@@ -85,3 +85,42 @@ Response:"""
                 callback(log, 5)
 
         return self.result
+    def run_phase1(self, topic: str, callback=None) -> dict:
+        """Run Phase 1: Fetch, Summarize, Identify Gaps."""
+        initial_state = {
+            "topic": topic,
+            "original_topic": topic,
+            "papers": [],
+            "summaries": [],
+            "gaps": "",
+            "research_questions": "",
+            "paper_draft": "",
+            "logs": [],
+            "retry_count": 0
+        }
+
+        if callback:
+            callback("🚀 Starting Phase 1: Fetching & Analyzing papers...", 0)
+
+        from graph import phase1_graph
+        result = phase1_graph.invoke(initial_state)
+
+        if callback:
+            for log in result.get("logs", []):
+                callback(log, 3)
+
+        return result
+
+    def run_phase2(self, state: dict, callback=None) -> dict:
+        """Run Phase 2: Generate Questions & Write Draft."""
+        if callback:
+            callback("🚀 Starting Phase 2: Generating questions & writing draft...", 3)
+
+        from graph import phase2_graph
+        result = phase2_graph.invoke(state)
+
+        if callback:
+            for log in result.get("logs", []):
+                callback(log, 5)
+
+        return result

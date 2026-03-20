@@ -166,3 +166,44 @@ def build_research_graph():
 
 
 research_graph = build_research_graph()
+def build_phase1_graph():
+    """Phase 1: Fetch → Summarize → Identify Gaps (then pause for human review)"""
+    graph = StateGraph(ResearchState)
+
+    graph.add_node("fetch_papers", fetch_papers_node)
+    graph.add_node("broaden_query", broaden_query_node)
+    graph.add_node("summarize_papers", summarize_papers_node)
+    graph.add_node("identify_gaps", identify_gaps_node)
+
+    graph.set_entry_point("fetch_papers")
+    graph.add_conditional_edges(
+        "fetch_papers",
+        check_papers_count,
+        {
+            "broaden_query": "broaden_query",
+            "summarize_papers": "summarize_papers"
+        }
+    )
+    graph.add_edge("broaden_query", "fetch_papers")
+    graph.add_edge("summarize_papers", "identify_gaps")
+    graph.add_edge("identify_gaps", END)
+
+    return graph.compile()
+
+
+def build_phase2_graph():
+    """Phase 2: Generate Questions → Write Draft"""
+    graph = StateGraph(ResearchState)
+
+    graph.add_node("generate_questions", generate_questions_node)
+    graph.add_node("write_draft", write_draft_node)
+
+    graph.set_entry_point("generate_questions")
+    graph.add_edge("generate_questions", "write_draft")
+    graph.add_edge("write_draft", END)
+
+    return graph.compile()
+
+
+phase1_graph = build_phase1_graph()
+phase2_graph = build_phase2_graph()
