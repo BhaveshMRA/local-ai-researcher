@@ -89,16 +89,16 @@ st.caption("Built with LangGraph — each box is a graph node, state flows left 
 # ── Sidebar ──────────────────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ Configuration")
-    
+
     agent = ResearchAgent()
-    
+
     if agent.check_ollama():
         st.success("✅ Ollama Connected")
         st.info("Model: Llama 3.1 8B via Groq")
     else:
         st.error("❌ Ollama not running")
         st.code("ollama serve", language="bash")
-    
+
     st.divider()
     st.markdown("### 📋 Pipeline Steps")
     st.markdown("""
@@ -108,9 +108,48 @@ with st.sidebar:
     4. 💡 Generate research questions
     5. ✍️ Write paper draft
     """)
-    
+
     st.divider()
-    
+
+    # ── Memory Section ──
+    st.markdown("### 📚 Past Research Sessions")
+
+    from memory import load_memory, delete_session, clear_all_sessions
+    sessions = load_memory()
+
+    if not sessions:
+        st.caption("No saved sessions yet. Run a pipeline and save it!")
+    else:
+        st.caption(f"{len(sessions)} saved session(s)")
+        for session in sessions:
+            with st.expander(f"🔬 {session['topic'][:35]}...", expanded=False):
+                st.caption(f"📅 {session['date']}")
+                st.caption(f"📄 {session['papers_count']} papers analyzed")
+                if session.get("paper_titles"):
+                    st.caption("Top papers: " + ", ".join(session["paper_titles"][:2]))
+
+                col1, col2 = st.columns(2)
+                if col1.button("📂 Load", key=f"load_{session['id']}"):
+                    st.session_state["topic_confirmed"] = session["topic"]
+                    st.session_state["papers"] = session["papers"]
+                    st.session_state["summaries"] = []
+                    st.session_state["edited_gaps"] = session["gaps"]
+                    st.session_state["questions"] = session["questions"]
+                    st.session_state["hypotheses"] = session.get("hypotheses", "")
+                    st.session_state["draft"] = session["draft"]
+                    st.session_state["phase2_done"] = True
+                    st.session_state["phase1_approved"] = True
+                    st.rerun()
+
+                if col2.button("🗑️ Delete", key=f"del_{session['id']}"):
+                    delete_session(session["id"])
+                    st.rerun()
+
+        if st.button("🗑️ Clear All Sessions", use_container_width=True):
+            clear_all_sessions()
+            st.rerun()
+
+    st.divider()
     st.markdown("*Project by Bhavesh Maurya*")
 
 # ── Main Input ───────────────────────────────────────────────
@@ -184,8 +223,11 @@ if "phase1_result" in st.session_state and not st.session_state.get("phase2_done
         with st.expander(f"📚 {len(papers)} Papers Found", expanded=False):
             for i, p in enumerate(papers, 1):
                 if "error" not in p:
+                    score = p.get('relevance_score', '')
+                    score_display = f"⭐ {score}/10 relevance" if score else ""
+                    source = p.get('source', 'arXiv')
                     st.markdown(f"**{i}. [{p['title']}]({p['url']})**")
-                    st.caption(f"👥 {', '.join(p['authors'])} | 📅 {p['published']}")
+                    st.caption(f"👥 {', '.join(p['authors'])} | 📅 {p['published']} | 🔗 {source} | {score_display}")
                     st.markdown(f"> {p['abstract'][:200]}...")
                     st.divider()
 
@@ -449,6 +491,20 @@ if st.session_state.get("phase2_done"):
         file_name=f"research_report_{topic[:30].replace(' ', '_')}.pdf",
         mime="application/pdf"
     )
+
+    # ── Save Session ──
+    from memory import save_session
+    if st.button("💾 Save Research Session", use_container_width=True):
+        save_session(
+            topic=topic,
+            papers=st.session_state.get("papers", []),
+            gaps=gaps,
+            questions=questions,
+            hypotheses=hypotheses,
+            draft=draft
+        )
+        st.success("✅ Session saved! Find it in the sidebar.")
+
 
     if st.button("🔁 Start New Research"):
         for key in ["phase1_approved", "phase1_result", "edited_gaps",

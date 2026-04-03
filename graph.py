@@ -12,6 +12,8 @@ from prompts import (
     hypothesis_prompt,
     paper_draft_prompt
 )
+from tools.semantic_scholar_tool import fetch_semantic_scholar_papers
+from tools.arxiv_tool import fetch_papers, format_papers_for_llm, score_and_sort_papers
 
 # ── State Definition ──────────────────────────────────────────
 class ResearchState(TypedDict):
@@ -51,10 +53,28 @@ def with_retry(func, state, max_retries=2):
 
 def _fetch_papers_node(state: ResearchState) -> ResearchState:
     topic = state["topic"]
-    papers = fetch_papers(topic, max_results=8)
     logs = state.get("logs", [])
-    logs.append(f"✅ Fetched {len(papers)} papers for: {topic}")
-    return {**state, "papers": papers, "logs": logs}
+
+    # Fetch from both sources
+    arxiv_papers = fetch_papers(topic, max_results=6)
+    ss_papers = fetch_semantic_scholar_papers(topic, max_results=4)
+
+    # Merge and deduplicate by title
+    all_papers = arxiv_papers + [
+        p for p in ss_papers
+        if "error" not in p and not any(
+            p["title"].lower() == ap["title"].lower()
+            for ap in arxiv_papers if "error" not in ap
+        )
+    ]
+
+    # Score and sort by relevance
+    scored_papers = score_and_sort_papers(all_papers, topic, call_llm)
+
+    logs.append(f"✅ Fetched {len(arxiv_papers)} arXiv + {len([p for p in ss_papers if 'error' not in p])} Semantic Scholar papers")
+    logs.append(f"🎯 Top {len(scored_papers)} most relevant papers selected after scoring")
+
+    return {**state, "papers": scored_papers, "logs": logs}
 
 
 def _broaden_query_node(state: ResearchState) -> ResearchState:
