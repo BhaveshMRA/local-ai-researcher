@@ -1,6 +1,6 @@
 # 🔬 Local AI Researcher
 
-An autonomous research pipeline powered by open-source LLMs that takes a research topic and executes the full academic research process — using a LangGraph agent framework with conditional branching.
+A fully autonomous research pipeline agent that takes a research topic and executes the complete academic research process — built with LangGraph, open-source LLMs, and a human-in-the-loop checkpoint.
 
 ## 🚀 Live Demo
 👉 [https://local-ai-researcher-09.streamlit.app](https://local-ai-researcher-09.streamlit.app)
@@ -9,32 +9,38 @@ An autonomous research pipeline powered by open-source LLMs that takes a researc
 
 Given a research topic, the autonomous LangGraph agent:
 
-1. 🔍 **Validates** the topic — rejects gibberish, food items, or non-academic input
+1. 🔎 **Validates** the topic — rejects gibberish or non-academic input
 2. 🔍 **Fetches papers** from arXiv API
-3. 🔄 **Conditionally broadens** the search query if fewer than 3 papers found
+3. 🔄 **Conditionally broadens** search query if fewer than 3 papers found
 4. 📄 **Summarizes** each paper using Llama 3.1 8B
 5. 🔬 **Identifies research gaps** across the literature
-6. 💡 **Generates research questions** grounded in the gaps
-7. ✍️ **Writes a full paper draft** (title, abstract, intro, methodology, contributions)
-8. 📥 **Exports** the report as a formatted downloadable PDF
+6. 🧠 **Pauses for human review** — user can edit or re-analyze gaps
+7. 💡 **Generates research questions** grounded in approved gaps
+8. ✍️ **Writes a full paper draft** (title, abstract, intro, methodology, contributions)
+9. 📥 **Exports** the report as a formatted downloadable PDF
 
 ## 🏗️ Architecture
 
-Built with **LangGraph** — each step is a graph node with a shared typed state (`ResearchState`) flowing through the pipeline:
+Built with **LangGraph** — each step is a graph node with a shared typed `ResearchState` flowing through the pipeline:
 ```
+Phase 1:
 [Fetch Papers] → Check: enough papers?
                       ↓ NO (<3 papers)
                 [Broaden Query] → [Fetch Papers again]
-                      ↓ YES (≥3 papers)
-         [Summarize Papers] → [Identify Gaps] → [Generate Questions] → [Write Draft] → END
+                      ↓ YES
+         [Summarize Papers] → [Identify Gaps] → ⏸️ HUMAN CHECKPOINT
+
+Phase 2 (after human approval):
+[Generate Questions] → [Write Draft] → END
 ```
 
-### Key Agent Capabilities:
+### Key Agent Capabilities
 - ✅ **Conditional branching** — auto-broadens query if fewer than 3 papers found
+- ✅ **Human-in-the-loop checkpoint** — user reviews/edits gaps before draft generation
 - ✅ **Stateful execution** — typed `ResearchState` shared across all nodes
-- ✅ **Topic validation** — LLM validates input before pipeline runs
+- ✅ **Topic validation** — LLM validates and corrects input before pipeline runs
 - ✅ **Real-time graph visualization** — pipeline diagram updates live as nodes execute
-- ✅ **Retry logic** — maximum 2 retries to avoid infinite loops
+- ✅ **Retry logic** — maximum 2 retries on query broadening to avoid infinite loops
 
 ## 🛠️ Tech Stack
 
@@ -51,8 +57,8 @@ Built with **LangGraph** — each step is a graph node with a shared typed state
 ## 📁 Project Structure
 ```
 local-ai-researcher/
-├── app.py              ← Streamlit UI + live graph visualization
-├── agent.py            ← LangGraph pipeline orchestrator  
+├── app.py              ← Streamlit UI + live graph + human-in-the-loop
+├── agent.py            ← LangGraph pipeline orchestrator
 ├── graph.py            ← LangGraph state machine + conditional branching
 ├── prompts.py          ← LLM prompt templates
 ├── tools/
@@ -96,6 +102,7 @@ autonomous AI agents using large language models
 federated learning in healthcare
 graph neural networks for drug discovery
 transformer models for time series forecasting
+vision language models for medical imaging
 ```
 
 ## 👤 Author

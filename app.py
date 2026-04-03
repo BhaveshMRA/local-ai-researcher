@@ -196,6 +196,39 @@ if "phase1_result" in st.session_state and not st.session_state.get("phase2_done
             st.markdown(s["summary"])
             st.divider()
 
+    # ── APA Citation Formatter ──
+    with st.expander("📋 APA Citations", expanded=False):
+        st.markdown("*Copy and use these citations directly in your paper.*")
+        all_citations = ""
+        for i, s in enumerate(summaries, 1):
+            authors = s['authors']
+            year = s['published'][:4]
+            title = s['title']
+            url = s['url']
+
+            # Format authors APA style
+            if len(authors) == 1:
+                author_str = authors[0].split()[-1] + ", " + ". ".join([n[0] for n in authors[0].split()[:-1]]) + "."
+            elif len(authors) == 2:
+                a1 = authors[0].split()[-1] + ", " + ". ".join([n[0] for n in authors[0].split()[:-1]]) + "."
+                a2 = authors[1].split()[-1] + ", " + ". ".join([n[0] for n in authors[1].split()[:-1]]) + "."
+                author_str = f"{a1}, & {a2}"
+            else:
+                a1 = authors[0].split()[-1] + ", " + ". ".join([n[0] for n in authors[0].split()[:-1]]) + "."
+                author_str = f"{a1}, et al."
+
+            citation = f"{i}. {author_str} ({year}). *{title}*. arXiv. {url}"
+            all_citations += citation + "\n\n"
+            st.markdown(citation)
+            st.divider()
+
+        st.download_button(
+            label="📋 Download All Citations (.txt)",
+            data=all_citations,
+            file_name=f"citations_{topic[:20].replace(' ', '_')}.txt",
+            mime="text/plain"
+        )
+
     # ── Human in the Loop ──
     if not st.session_state.get("phase1_approved"):
         st.markdown("---")
@@ -266,6 +299,39 @@ if st.session_state.get("phase2_done"):
     questions = st.session_state.get("questions", "")
     draft = st.session_state.get("draft", "")
 
+    # ── APA Citations ──
+    with st.expander("📋 APA Citations", expanded=False):
+        st.markdown("*Copy and use these citations directly in your paper.*")
+        all_citations = ""
+        for i, s in enumerate(summaries, 1):
+            authors = s['authors']
+            year = s['published'][:4]
+            title = s['title']
+            url = s['url']
+
+            if len(authors) == 1:
+                author_str = authors[0].split()[-1] + ", " + ". ".join([n[0] for n in authors[0].split()[:-1]]) + "."
+            elif len(authors) == 2:
+                a1 = authors[0].split()[-1] + ", " + ". ".join([n[0] for n in authors[0].split()[:-1]]) + "."
+                a2 = authors[1].split()[-1] + ", " + ". ".join([n[0] for n in authors[1].split()[:-1]]) + "."
+                author_str = f"{a1}, & {a2}"
+            else:
+                a1 = authors[0].split()[-1] + ", " + ". ".join([n[0] for n in authors[0].split()[:-1]]) + "."
+                author_str = f"{a1}, et al."
+
+            citation = f"{i}. {author_str} ({year}). *{title}*. arXiv. {url}"
+            all_citations += citation + "\n\n"
+            st.markdown(citation)
+            st.divider()
+
+        st.download_button(
+            label="📋 Download All Citations (.txt)",
+            data=all_citations,
+            file_name=f"citations_{topic[:20].replace(' ', '_')}.txt",
+            mime="text/plain"
+        )
+
+    
     with st.expander("🔬 Research Gaps (Reviewed)", expanded=True):
         st.markdown(gaps)
 
