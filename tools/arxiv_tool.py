@@ -54,27 +54,39 @@ URL: {paper['url']}
     return "\n".join(formatted)
 
 def score_and_sort_papers(papers: list[dict], topic: str, call_llm_fn) -> list[dict]:
-    """Score each paper for relevance and sort by score."""
-    scored = []
-    for paper in papers:
-        if "error" in paper:
-            continue
-        prompt = f"""Score this paper's relevance to the topic "{topic}" on a scale of 1-10.
-Return ONLY a single integer between 1 and 10, nothing else.
+    """Score all papers in one LLM call and sort by relevance."""
+    valid_papers = [p for p in papers if "error" not in p]
+    if not valid_papers:
+        return papers
 
-Paper title: {paper['title']}
-Abstract: {paper['abstract'][:300]}
+    # Build one prompt for all papers
+    papers_list = ""
+    for i, p in enumerate(valid_papers):
+        papers_list += f"{i+1}. Title: {p['title']}\nAbstract: {p['abstract'][:200]}\n\n"
 
-Score:"""
-        try:
-            score_str = call_llm_fn(prompt).strip()
-            score = int(''.join(filter(str.isdigit, score_str[:2])))
-            score = max(1, min(10, score))
-        except:
-            score = 5
-        paper["relevance_score"] = score
-        scored.append(paper)
+    prompt = f"""Score each paper's relevance to "{topic}" from 1-10.
+Return ONLY a comma-separated list of integers in order, nothing else.
+Example output: 8,6,9,4,7,5,8
 
-    # Sort by score descending, take top 6
-    scored.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
-    return scored[:6]
+Papers:
+{papers_list}
+Scores:"""
+
+    try:
+        response = call_llm_fn(prompt).strip()
+        # Parse scores
+        scores = [int(s.strip()) for s in response.split(",") if s.strip().isdigit()]
+        scores = [max(1, min(10, s)) for s in scores]
+
+        # Assign scores
+        for i, paper in enumerate(valid_papers):
+            paper["relevance_score"] = scores[i] if i < len(scores) else 5
+
+    except:
+        # If scoring fails, assign default scores
+        for paper in valid_papers:
+            paper["relevance_score"] = 5
+
+    # Sort by score and return top 6
+    valid_papers.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+    return valid_papers[:6]
