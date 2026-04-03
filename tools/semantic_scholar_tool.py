@@ -6,7 +6,7 @@ SEMANTIC_SCHOLAR_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 def fetch_semantic_scholar_papers(topic: str, max_results: int = 4) -> list[dict]:
     """Fetch papers from Semantic Scholar API."""
     try:
-        time.sleep(2)  # avoid rate limiting
+        time.sleep(1)  # avoid rate limiting
         params = {
             "query": topic,
             "limit": max_results,
