@@ -56,6 +56,7 @@ Response:"""
             "summaries": [],
             "gaps": "",
             "research_questions": "",
+            "hypotheses": "",
             "paper_draft": "",
             "logs": [],
             "retry_count": 0
@@ -94,6 +95,7 @@ Response:"""
             "summaries": [],
             "gaps": "",
             "research_questions": "",
+            "hypotheses": "",
             "paper_draft": "",
             "logs": [],
             "retry_count": 0

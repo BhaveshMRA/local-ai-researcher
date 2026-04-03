@@ -1,3 +1,4 @@
+
 import time
 from typing import TypedDict, List
 from langgraph.graph import StateGraph, END
@@ -8,6 +9,7 @@ from prompts import (
     summarize_prompt,
     gap_analysis_prompt,
     research_questions_prompt,
+    hypothesis_prompt,
     paper_draft_prompt
 )
 
@@ -19,6 +21,7 @@ class ResearchState(TypedDict):
     summaries: List[dict]
     gaps: str
     research_questions: str
+    hypotheses: str
     paper_draft: str
     logs: List[str]
     retry_count: int
@@ -94,6 +97,17 @@ def _identify_gaps_node(state: ResearchState) -> ResearchState:
     gaps = call_llm(prompt, SYSTEM_PROMPT)
     logs.append("🔬 Research gaps identified")
     return {**state, "gaps": gaps, "logs": logs}
+
+
+def _generate_hypotheses_node(state: ResearchState) -> ResearchState:
+    logs = state.get("logs", [])
+    prompt = hypothesis_prompt(state["research_questions"], state["topic"])
+    hypotheses = call_llm(prompt, SYSTEM_PROMPT)
+    logs.append("🧪 Hypotheses generated")
+    return {**state, "hypotheses": hypotheses, "logs": logs}
+
+def generate_hypotheses_node(state: ResearchState) -> ResearchState:
+    return with_retry(_generate_hypotheses_node, state)
 
 
 def _generate_questions_node(state: ResearchState) -> ResearchState:
@@ -176,7 +190,9 @@ def build_research_graph():
     graph.add_edge("broaden_query", "fetch_papers")
     graph.add_edge("summarize_papers", "identify_gaps")
     graph.add_edge("identify_gaps", "generate_questions")
-    graph.add_edge("generate_questions", "write_draft")
+    graph.add_node("generate_hypotheses", generate_hypotheses_node)
+    graph.add_edge("generate_questions", "generate_hypotheses")
+    graph.add_edge("generate_hypotheses", "write_draft")
     graph.add_edge("write_draft", END)
 
     return graph.compile()
@@ -214,10 +230,12 @@ def build_phase2_graph():
     graph = StateGraph(ResearchState)
 
     graph.add_node("generate_questions", generate_questions_node)
+    graph.add_node("generate_hypotheses", generate_hypotheses_node)
     graph.add_node("write_draft", write_draft_node)
 
     graph.set_entry_point("generate_questions")
-    graph.add_edge("generate_questions", "write_draft")
+    graph.add_edge("generate_questions", "generate_hypotheses")
+    graph.add_edge("generate_hypotheses", "write_draft")
     graph.add_edge("write_draft", END)
 
     return graph.compile()

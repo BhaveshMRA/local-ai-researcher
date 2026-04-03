@@ -286,6 +286,7 @@ if "phase1_result" in st.session_state and not st.session_state.get("phase2_done
 
         # Save phase2 results
         st.session_state["questions"] = phase2_result.get("research_questions", "")
+        st.session_state["hypotheses"] = phase2_result.get("hypotheses", "")
         st.session_state["draft"] = phase2_result.get("paper_draft", "")
         st.session_state["phase2_done"] = True
         st.rerun()
@@ -338,6 +339,9 @@ if st.session_state.get("phase2_done"):
     with st.expander("💡 Research Questions", expanded=True):
         st.markdown(questions)
 
+    with st.expander("🧪 Hypotheses", expanded=True):
+        st.markdown(st.session_state.get("hypotheses", ""))
+
     st.markdown("---")
     st.markdown("## 📄 Generated Paper Draft")
     st.markdown(draft)
@@ -345,7 +349,7 @@ if st.session_state.get("phase2_done"):
     st.markdown("---")
     st.markdown("### 📥 Export")
 
-    def generate_pdf(topic, summaries, gaps, questions, draft):
+    def generate_pdf(topic, summaries, gaps, questions, hypotheses, draft):
         from fpdf import FPDF
         import re
 
@@ -427,13 +431,18 @@ if st.session_state.get("phase2_done"):
         section_title("RESEARCH QUESTIONS")
         body_text(questions)
         divider()
+        section_title("HYPOTHESES")
+        body_text(hypotheses)
+        divider()
+
         pdf.add_page()
         section_title("GENERATED PAPER DRAFT")
         body_text(draft)
 
         return bytes(pdf.output())
 
-    pdf_bytes = generate_pdf(topic, summaries, gaps, questions, draft)
+    hypotheses = st.session_state.get("hypotheses", "")
+    pdf_bytes = generate_pdf(topic, summaries, gaps, questions, hypotheses, draft)
     st.download_button(
         label="📄 Download Full Report as PDF",
         data=pdf_bytes,

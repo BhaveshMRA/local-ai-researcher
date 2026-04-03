@@ -68,3 +68,20 @@ Write the following sections:
 6. EXPECTED CONTRIBUTIONS: 3 bullet points of expected contributions
 
 Use formal academic writing style throughout."""
+
+def hypothesis_prompt(research_questions: str, topic: str) -> str:
+    return f"""Based on these research questions about {topic}:
+{research_questions}
+
+Generate 3 specific, testable hypotheses that could be empirically validated.
+Each hypothesis should be falsifiable and directly address one of the research questions.
+
+Output format:
+H1: [hypothesis statement]
+Expected outcome: [what you expect to find]
+
+H2: [hypothesis statement]
+Expected outcome: [what you expect to find]
+
+H3: [hypothesis statement]
+Expected outcome: [what you expect to find]"""
